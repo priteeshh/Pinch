@@ -12,13 +12,23 @@ struct ContentView: View {
     @State private var imageScale: CGFloat = 1
     @State private var imageOffset: CGSize = .zero
     @State private var lastDragOffset: CGSize = .zero
+    @State private var baseScale: CGFloat = 1
     
+    let pages: [Page] = pageData
+    @State private var pageIndex : Int = 0
+    @State private var isDrawerOpen: Bool = false
+
     func resetImage() {
         return withAnimation(.spring()) {
             imageScale = 1
             imageOffset = .zero
             lastDragOffset = .zero
+            baseScale = 1
         }
+    }
+    
+    func currentPage() -> String {
+        pages[pageIndex].imageName
     }
     
     var body: some View {
@@ -26,7 +36,7 @@ struct ContentView: View {
             ZStack {
                 Color.clear
 
-                Image("magazine-front-cover")
+                Image(currentPage())
                     .resizable()
                     .scaledToFit()
                     .cornerRadius(12)
@@ -39,10 +49,11 @@ struct ContentView: View {
                         if imageScale == 1 {
                             withAnimation(.spring()) {
                                 imageScale = 5
+                                baseScale = 5
                             }
-                        }
-                        else {
+                        } else {
                             resetImage()
+                            baseScale = 1
                         }
                     })
                     .gesture(
@@ -61,6 +72,23 @@ struct ContentView: View {
                                 }
                             }
                     )
+                    .gesture(
+                        MagnificationGesture()
+                            .onChanged { value in
+                                // Compute scale relative to the scale at the start of the gesture
+                                let proposed = baseScale * value
+                                // Clamp between 1 and 5
+                                imageScale = min(max(proposed, 1), 5)
+                            }
+                            .onEnded { value in
+                                // Commit the new base scale, clamped
+                                baseScale = min(max(baseScale * value, 1), 5)
+                                if baseScale <= 1 {
+                                    resetImage()
+                                    baseScale = 1
+                                }
+                            }
+                    )
             }
             .navigationTitle("Pinch & Zoom")
             .navigationBarTitleDisplayMode(.inline)
@@ -72,11 +100,15 @@ struct ContentView: View {
                 alignment: .top
             )
             .overlay(
+                DrawerView(pages: pages, pageIndex: $pageIndex)
+            )
+            .overlay(
                 Group {
                     HStack {
                         Button {
                             if imageScale > 1 {
                                 imageScale -= 1
+                                baseScale = imageScale
                                 
                                 if imageScale <= 1 {
                                     resetImage()
@@ -88,6 +120,7 @@ struct ContentView: View {
                         
                         Button {
                             resetImage()
+                            baseScale = 1
                         } label: {
                             ControlImageView(icon: "arrow.up.left.and.down.right.magnifyingglass")
                         }
@@ -96,9 +129,11 @@ struct ContentView: View {
                             withAnimation(.spring()) {
                                 if imageScale < 5 {
                                     imageScale += 1
+                                    baseScale = imageScale
                                     
                                     if imageScale > 5 {
                                         imageScale = 5
+                                        baseScale = imageScale
                                     }
                                 }
                             }
